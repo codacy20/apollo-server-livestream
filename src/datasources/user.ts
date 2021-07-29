@@ -1,8 +1,9 @@
+import { PrismaClient, Trip, Pet } from "@prisma/client";
 import { DataSource } from "apollo-datasource";
 import isEmail from "isemail";
 
 export class UserAPI extends DataSource {
-  prisma;
+  prisma: PrismaClient;
   context: any;
 
   constructor({ prisma }: any) {
@@ -27,10 +28,21 @@ export class UserAPI extends DataSource {
         : emailInput.email;
     if (!email || !isEmail.validate(email)) return null;
 
-    return null;
+    // there is an email
+    const user = await this.prisma.user.upsert({
+      where: { email },
+      create: { email },
+      update: { email },
+    });
+
+    return user;
   }
 
-  async bookTrips({ launchIds }: { launchIds: number[] }) {
+  async bookTrips({
+    launchIds,
+  }: {
+    launchIds: number[];
+  }): Promise<Trip[] | undefined> {
     const userId = this.context.user.id;
     if (!userId) return;
 
@@ -38,16 +50,29 @@ export class UserAPI extends DataSource {
 
     // for each launch id, try to book the trip and add it to the results array
     // if successful
-    // for (const launchId of launchIds) {
-    //   const res = await this.bookTrip({ launchId });
-    //   if (res) results.push(res);
-    // }
+    for (const launchId of launchIds) {
+      const res = await this.bookTrip({ launchId });
+      if (res) results.push(res);
+    }
 
     return results;
   }
 
-  async bookTrip({ launchId }: { launchId: number }): Promise<any> {
+  async bookTrip({ launchId }: { launchId: number }): Promise<Trip> {
     const userId = this.context.user.id;
+    const userBookedTrip = await this.prisma.trip.findUnique({
+      where: { userId_launchId: { launchId: Number(launchId), userId } },
+    });
+    if (userBookedTrip) return userBookedTrip;
+    const trip = await this.prisma.trip.create({
+      data: {
+        launchId: Number(launchId),
+        User: {
+          connect: { id: userId },
+        },
+      },
+    });
+    return trip;
   }
 
   async cancelTrip({ launchId }: { launchId: number }): Promise<boolean> {
@@ -57,13 +82,24 @@ export class UserAPI extends DataSource {
 
   async getLaunchIdsByUser(): Promise<number[]> {
     const userId = this.context.user.id;
-    return [];
+    const trips = await this.prisma.trip.findMany({
+      where: { userId: userId },
+    });
+
+    return trips.map((t) => t.launchId || -1).filter((id) => id != -1);
   }
 
   async isBookedOnLaunch({ launchId }: { launchId: number }): Promise<Boolean> {
     if (!this.context || !this.context.user) return false;
     const userId = this.context.user.id;
-
-    return false;
+    const trip = await this.prisma.trip.findUnique({
+      where: {
+        userId_launchId: {
+          launchId,
+          userId,
+        },
+      },
+    });
+    return Boolean(trip);
   }
 }

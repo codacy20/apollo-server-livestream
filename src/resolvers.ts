@@ -1,9 +1,13 @@
 import { paginateResults } from "./utils";
-import { DataSources } from "./types"
+import { DataSources } from "./types";
 
 export const resolvers = {
   Query: {
-    launches: async (_, { pageSize = 20, after }, { dataSources }: { dataSources: DataSources }) => {
+    launches: async (
+      _,
+      { pageSize = 20, after },
+      { dataSources }: { dataSources: DataSources }
+    ) => {
       const allLaunches = await dataSources.launchAPI.getAllLaunches();
       // we want these in reverse chronological order
       allLaunches.reverse();
@@ -25,17 +29,26 @@ export const resolvers = {
     },
     launch: (_, { id }, { dataSources }: { dataSources: DataSources }) =>
       dataSources.launchAPI.getLaunchById({ launchId: id }),
-    me: (_, __, { dataSources }: { dataSources: DataSources }) => dataSources.userAPI.findOrCreateUser(),
+    me: (_, __, { dataSources }: { dataSources: DataSources }) =>
+      dataSources.userAPI.findOrCreateUser(),
   },
   Mutation: {
-    login: async (_, { email }, { dataSources }: { dataSources: DataSources }) => {
+    login: async (
+      _,
+      { email },
+      { dataSources }: { dataSources: DataSources }
+    ) => {
       const user = await dataSources.userAPI.findOrCreateUser({ email });
       if (user) {
         user.token = Buffer.from(email).toString("base64");
         return user;
       }
     },
-    bookTrips: async (_, { launchIds }, { dataSources }: { dataSources: DataSources }) => {
+    bookTrips: async (
+      _,
+      { launchIds },
+      { dataSources }: { dataSources: DataSources }
+    ) => {
       const results = await dataSources.userAPI.bookTrips({ launchIds });
       const launches = await dataSources.launchAPI.getLaunchesByIds({
         launchIds,
@@ -52,7 +65,11 @@ export const resolvers = {
         launches,
       };
     },
-    cancelTrip: async (_, { launchId }, { dataSources }: { dataSources: DataSources }) => {
+    cancelTrip: async (
+      _,
+      { launchId },
+      { dataSources }: { dataSources: DataSources }
+    ) => {
       const result = await dataSources.userAPI.cancelTrip({ launchId });
 
       if (!result)
@@ -78,9 +95,11 @@ export const resolvers = {
     },
   },
   Launch: {
-    isBooked: async (launch, _, { dataSources }: { dataSources: DataSources }) =>
-      // dataSources.userAPI.isBookedOnLaunch({ launchId: launch.id }),
-      false,
+    isBooked: async (
+      launch,
+      _,
+      { dataSources }: { dataSources: DataSources }
+    ) => dataSources.userAPI.isBookedOnLaunch({ launchId: launch.id }),
   },
   User: {
     trips: async (_, __, { dataSources }: { dataSources: DataSources }) => {
@@ -93,6 +112,14 @@ export const resolvers = {
           launchIds,
         }) || []
       );
+    },
+    pet: async ({ id }, _, { prisma }) => {
+      return prisma.user.findUnique({ where: { id } }).pet;
+    },
+  },
+  Pet: {
+    owner: async ({ id }, _, { prisma }) => {
+      return prisma.pet.findUnique({ where: { id } }).owner;
     },
   },
 };
